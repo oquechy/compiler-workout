@@ -1,6 +1,0 @@
-Embedding.cmo : Syntax.cmo
-Embedding.cmx : Syntax.cmx
-SM.cmo : Syntax.cmo
-SM.cmx : Syntax.cmx
-Syntax.cmo :
-Syntax.cmx :
