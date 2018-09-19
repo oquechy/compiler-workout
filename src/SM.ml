@@ -24,7 +24,7 @@ type config = int list * Syntax.Stmt.config
    Takes a configuration and a program, and returns a configuration as a result
  *)                          
 let eval = List.fold_left (fun (st, (s, i, o)) inst -> match inst with
-        | BINOP op -> let x :: y :: st' = st in ((Syntax.Expr.run op x y) :: st', (s, i, o))
+        | BINOP op -> let y :: x :: st' = st in ((Syntax.Expr.run op x y) :: st', (s, i, o))
         | CONST n -> (n :: st, (s, i, o))
         | READ -> let v :: i' = i in (v :: st, (s, i', o)) 
         | WRITE -> let v :: st' = st in (st', (s, i, o @ [v])) 
