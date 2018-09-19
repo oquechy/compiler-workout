@@ -34,6 +34,23 @@ module Expr =
     *)
     let update x v s = fun y -> if x = y then v else s y
 
+    let run op = 
+        match op with
+        | "+"  -> (+)
+        | "-"  -> (-)
+        | "*"  -> ( * )
+        | "/"  -> (/)
+        | "%"  -> (mod)
+        | "==" -> fun x y -> if x = y  then 1 else 0
+        | "!=" -> fun x y -> if x <> y then 1 else 0
+        | "<=" -> fun x y -> if x <= y then 1 else 0
+        | "<"  -> fun x y -> if x < y  then 1 else 0
+        | ">=" -> fun x y -> if x >= y then 1 else 0
+        | ">"  -> fun x y -> if x > y  then 1 else 0
+        | "!!" -> fun x y -> if x <> 0 || y <> 0 then 1 else 0
+        | "&&" -> fun x y -> if x <> 0 && y <> 0 then 1 else 0
+        |  _   -> failwith (Printf.sprintf "Undefined operator %s" op)
+        
     (* Expression evaluator
 
           val eval : state -> t -> int
@@ -41,8 +58,11 @@ module Expr =
        Takes a state and an expression, and returns the value of the expression in 
        the given state.
     *)
-    let eval _ = failwith "Not implemented yet"
-
+    let rec eval s e = 
+        match e with
+        | Const c -> c
+        | Var v -> s v
+        | Binop (op, x, y) -> run op (eval s x) (eval s y)
   end
                     
 (* Simple statements: syntax and sematics *)
@@ -65,7 +85,12 @@ module Stmt =
 
        Takes a configuration and a statement, and returns another configuration
     *)
-    let eval _ = failwith "Not implemented yet"
+    let rec eval ((s, i, o) as cfg) smt = 
+        match smt with 
+        | Read v -> let hd :: tl = i in (Expr.update v hd s, tl, o)
+        | Write e -> let res = Expr.eval s e in (s, i, o @ [res])
+        | Assign (v, e) -> let res = Expr.eval s e in (Expr.update v res s, i, o)
+        | Seq (a, b) -> eval (eval cfg a) b 
                                                          
   end
 

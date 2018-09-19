@@ -22,9 +22,15 @@ type config = int list * Syntax.Stmt.config
      val eval : config -> prg -> config
 
    Takes a configuration and a program, and returns a configuration as a result
- *)                         
-let eval _ = failwith "Not yet implemented"
-
+ *)                          
+let eval = List.fold_left (fun (st, (s, i, o)) inst -> match inst with
+        | BINOP op -> let x :: y :: st' = st in ((Syntax.Expr.run op x y) :: st', (s, i, o))
+        | CONST n -> (n :: st, (s, i, o))
+        | READ -> let v :: i' = i in (v :: st, (s, i', o)) 
+        | WRITE -> let v :: st' = st in (st', (s, i, o @ [v])) 
+        | LD x -> ((s x) :: st, (s, i, o)) 
+        | ST x -> let v :: st' = st in (st', (Syntax.Expr.update x v s, i, o)))
+    
 (* Top-level evaluation
 
      val run : int list -> prg -> int list
@@ -33,12 +39,24 @@ let eval _ = failwith "Not yet implemented"
 *)
 let run i p = let (_, (_, _, o)) = eval ([], (Syntax.Expr.empty, i, [])) p in o
 
+let rec compile' exp =
+    match exp with
+    | Syntax.Expr.Const n -> [CONST n]
+    | Syntax.Expr.Var x -> [LD x]
+    | Syntax.Expr.Binop (op, x, y) -> (compile' x) @ (compile' y) @ [BINOP op]
+
 (* Stack machine compiler
 
      val compile : Syntax.Stmt.t -> prg
 
    Takes a program in the source language and returns an equivalent program for the
    stack machine
- *)
+*)
+let rec compile smt =
+    match smt with
+    | Syntax.Stmt.Read v -> [READ; ST v] 
+    | Syntax.Stmt.Write e -> (compile' e) @ [WRITE]
+    | Syntax.Stmt.Assign (v, e) -> (compile' e) @ [ST v]
+    | Syntax.Stmt.Seq (a, b) -> (compile a) @ (compile b) 
+    
 
-let compile _ = failwith "Not yet implemented"
