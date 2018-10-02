@@ -24,7 +24,13 @@ type config = int list * Stmt.config
 
    Takes a configuration and a program, and returns a configuration as a result
 *)                         
-let rec eval conf prog = failwith "Not yet implemented"
+let eval = List.fold_left (fun (st, (s, i, o)) inst -> match inst with
+        | BINOP op -> let y :: x :: st' = st in ((Expr.run op x y) :: st', (s, i, o))
+        | CONST n -> (n :: st, (s, i, o))
+        | READ -> let v :: i' = i in (v :: st, (s, i', o)) 
+        | WRITE -> let v :: st' = st in (st', (s, i, o @ [v])) 
+        | LD x -> ((s x) :: st, (s, i, o)) 
+        | ST x -> let v :: st' = st in (st', (Expr.update x v s, i, o)))
 
 (* Top-level evaluation
 

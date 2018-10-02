@@ -2,6 +2,7 @@
    The library provides "@type ..." syntax extension and plugins like show, etc.
 *)
 open GT
+open Ostap
 
 (* Opening a library for combinator-based syntax analysis *)
 open Ostap.Combinators
@@ -36,6 +37,23 @@ module Expr =
       to value v and returns the new state.
     *)
     let update x v s = fun y -> if x = y then v else s y
+    
+    let run op = 
+        match op with
+        | "+"  -> (+)
+        | "-"  -> (-)
+        | "*"  -> ( * )
+        | "/"  -> (/)
+        | "%"  -> (mod)
+        | "==" -> fun x y -> if x = y  then 1 else 0
+        | "!=" -> fun x y -> if x <> y then 1 else 0
+        | "<=" -> fun x y -> if x <= y then 1 else 0
+        | "<"  -> fun x y -> if x < y  then 1 else 0
+        | ">=" -> fun x y -> if x >= y then 1 else 0
+        | ">"  -> fun x y -> if x > y  then 1 else 0
+        | "!!" -> fun x y -> if x <> 0 || y <> 0 then 1 else 0
+        | "&&" -> fun x y -> if x <> 0 && y <> 0 then 1 else 0
+        |  _   -> failwith (Printf.sprintf "Undefined operator %s" op)
 
     (* Expression evaluator
 
@@ -44,8 +62,11 @@ module Expr =
        Takes a state and an expression, and returns the value of the expression in 
        the given state.
      *)                                                       
-    let eval _ _ = failwith "Not yet implemented"
-
+    let rec eval s e = 
+        match e with
+        | Const c -> c
+        | Var v -> s v
+        | Binop (op, x, y) -> run op (eval s x) (eval s y)
     (* Expression parser. You can use the following terminals:
 
          IDENT   --- a non-empty identifier a-zA-Z[a-zA-Z0-9_]* as a string
@@ -53,7 +74,38 @@ module Expr =
                                                                                                                   
     *)
     ostap (                                      
-      parse: empty {failwith "Not yet implemented"}
+      expr:
+        !(Util.expr
+            (fun x -> x)
+            [|
+                `Lefta, [ 
+                    ostap ("!!"), (fun x y -> Binop("!!", x, y)) 
+                ];
+                `Lefta, [ 
+                    ostap ("&&"), (fun x y -> Binop("&&", x, y))
+                ];
+                `Nona, [
+                    ostap ("!="), (fun x y -> Binop("!=", x, y)); 
+                    ostap ("=="), (fun x y -> Binop("==", x, y)); 
+                    ostap ("<="), (fun x y -> Binop("<=", x, y)); 
+                    ostap ("<"),  (fun x y -> Binop("<", x, y)); 
+                    ostap (">="), (fun x y -> Binop(">=", x, y)); 
+                    ostap (">"),  (fun x y -> Binop(">", x, y))
+                ];
+                `Lefta, [ 
+                    ostap ("+"),  (fun x y -> Binop("+", x, y)); 
+                    ostap ("-"),  (fun x y -> Binop("-", x, y))
+                ];
+                `Lefta , [ 
+                    ostap ("*"),  (fun x y -> Binop("*", x, y)); 
+                    ostap ("/"),  (fun x y -> Binop("/", x, y)); 
+                    ostap ("%"),  (fun x y -> Binop("%", x, y))
+                 ]
+            |]
+            primary
+        );
+      
+      primary: x:IDENT {Var x} | n:DECIMAL {Const n} | -"(" expr -")"
     )
     
   end
@@ -78,11 +130,20 @@ module Stmt =
 
        Takes a configuration and a statement, and returns another configuration
     *)
-    let eval _ _ = failwith "Not yet implemented"
-
+    let rec eval ((s, i, o) as cfg) smt = 
+        match smt with 
+        | Read v -> let hd :: tl = i in (Expr.update v hd s, tl, o)
+        | Write e -> let res = Expr.eval s e in (s, i, o @ [res])
+        | Assign (v, e) -> let res = Expr.eval s e in (Expr.update v res s, i, o)
+        | Seq (a, b) -> eval (eval cfg a) b 
+        
     (* Statement parser *)
     ostap (
-      parse: empty {failwith "Not yet implemented"}
+        simple_stmt:
+            x :IDENT ":=" e:!(Expr.expr) {Assign (x, e)}
+            | "read" "(" x:IDENT ")" {Read x}
+            | "write" "(" e:!(Expr.expr) ")" {Write e};
+        parse: <s::ss> : !(Util.listBy)[ostap (";")][simple_stmt] {List.fold_left (fun s ss -> Seq (s, ss)) s ss} 
     )
       
   end
